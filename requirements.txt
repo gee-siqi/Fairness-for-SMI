@@ -1,0 +1,8 @@
+requests
+pandas==1.2.3
+numpy>=1.20.0
+matplotlib
+seaborn
+matplotlib
+bs4
+statsmodels
