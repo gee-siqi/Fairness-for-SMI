@@ -26,7 +26,6 @@ def recom_prob(quality, frequency):
 
 
 def save_info(creator_info, user_info):
-
     with open('creator_info.json', 'w') as f:
         json.dump(creator_info, f)
 
@@ -39,7 +38,7 @@ class Simulation:
             self,
             num_creators=1000,
             num_users=10000,
-            attention_limit=100,
+            attention_limit=120,
             simu_cat='gaming',
     ):
         self.creators = [Creator(simu_cat=simu_cat) for _ in range(num_creators)]
@@ -84,11 +83,11 @@ class Simulation:
             self.follow_decision()
             print(f'the {i} th run')
         creator_res = [{"quality": creator.quality,
-                             "subscribers": creator.subscribers,
-                             "frequency": creator.frequency,
-                             }
-                            for creator in self.creators
-                            ]
+                        "subscribers": creator.subscribers,
+                        "frequency": creator.frequency,
+                        }
+                       for creator in self.creators
+                       ]
 
         user_res = [{"occupancy": user.occupancy,
                      "followed_creators": user.followed_creators
