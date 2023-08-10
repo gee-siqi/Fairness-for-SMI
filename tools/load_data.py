@@ -39,7 +39,7 @@ def get_list(url):
     return df
 
 
-# get published time from youtube api
+# get published time from YouTube api (not accurate)
 def get_time(name):
     url_api = f"https://youtube.googleapis.com/youtube/v3/channels?key=AIzaSyBHXi5MEagFtCdHnOZP41vBztWktZfUfak&part=snippet,statistics&forUsername={name}"
 
