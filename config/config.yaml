@@ -1,0 +1,8 @@
+alpha: 0
+attention_limit: 120
+num_CCs: 100
+num_users: 1000
+simu_cat: gaming
+tolerance: 1
+iterations: 100
+#num_steps: [10, 20, 50]

@@ -37,7 +37,7 @@ def plot_freq_sub(df, sub_upto=60000000, freq_upto=200):
     plt.show()
 
 
-# generate simulation frequency data
+# generate simu_process frequency data
 def kde_simu(cat, n):
     root_dir = get_root_path()
     data_dir = path(root_dir, f'data/{cat}1000.csv')
@@ -46,8 +46,8 @@ def kde_simu(cat, n):
     raw_freq = df['freq_m']
     kde = gaussian_kde(raw_freq, bw_method=0.2)
     new_freq = kde.resample(size=n)[0]
-    min_value = 0
-    max_value = 1000
-    new_freq = np.clip(new_freq, min_value, max_value)
+    # min_value = 0
+    # max_value = 1000
+    # new_freq = np.clip(new_freq, min_value, max_value)
     return new_freq
 
