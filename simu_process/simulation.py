@@ -4,6 +4,7 @@ from simu_process import model
 from tools.utils import get_root_path, path
 import pickle
 from tqdm import tqdm
+from datetime import datetime
 import os
 
 
@@ -45,7 +46,7 @@ class Simulation:
         user_dfs = []
         cc_dfs = []
 
-        for i in tqdm(range(self.iteration), desc="Iterations"):
+        for i in tqdm(range(self.iteration), desc=f"Iterations with alpha = {self.config['alpha']}"):
             user_data, cc_data = self.simulate()
             df_u = pd.DataFrame(user_data)
             df_c = pd.DataFrame(cc_data)
@@ -61,7 +62,8 @@ class Simulation:
     def save_data(self, overwrite=True):
         # get the direction of output file, save json for each alpha value
         root_dir = get_root_path()
-        self.output_file = path(root_dir, f'_output/iter{self.config["iterations"]}alpha{self.config["alpha"]}.pkl')
+        time = datetime.strftime(datetime.now(), "%Y%m%d%H%M%S")
+        self.output_file = path(root_dir, f'_output/{time}alpha{self.config["alpha"]}.pkl')
         with open(self.output_file, 'wb') as file:
             pickle.dump(self.iter_res, file)
 
