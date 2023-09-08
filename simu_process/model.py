@@ -140,12 +140,35 @@ class RS:
 
         total_freq = np.sum(freqs)
         if total_freq == 0:
-            probs = np.full(len(freqs), 1 / len(freqs))  # 如果总概率为零，分配均等概率
+            probs = np.full(len(freqs), 1 / len(freqs))
         else:
             probs = freqs / total_freq
 
         # assign recommended CC for each user at each step
         recommended_creator_index = np.random.choice(len(probs), size=self.num_users, p=probs)
+        return recommended_creator_index
+
+    def recommend_extreme(self, creators):
+        alpha = self.config["alpha"]
+        views = np.array([cc.views for cc in creators])
+        # Extreme PA
+        if alpha == 1000:
+            max_indices = np.where(views == np.max(views))[0]
+            # if more than one creator have same extrme values, random select recommendation
+            if len(max_indices) == 1:
+                recommended_creator_index = [max_indices[0] for _ in range(self.num_users)]
+            else:
+                recommended_creator_index = np.random.choice(max_indices, size=self.num_users)
+
+        # Extreme anti PA
+        elif alpha == -1000:
+            # find min indexes
+            min_indices = np.where(views == np.min(views))[0]
+            # if more than one creator have same extrme values, random select recommendation
+            if len(min_indices) == 1:
+                recommended_creator_index = [min_indices[0] for _ in range(self.num_users)]
+            else:
+                recommended_creator_index = np.random.choice(min_indices, size=self.num_users)
         return recommended_creator_index
 
     def recmd_followed(self, users, creators):
@@ -159,6 +182,7 @@ class Process:
     """
     def __init__(self, config):
         self.config = config
+        self.alpha = config["alpha"]
 
         self.creators = [Creator(config, id=i) for i in range(config["num_CCs"])]
         self.users = [User(config, id=i) for i in range(config["num_users"])]
@@ -169,24 +193,27 @@ class Process:
         self.step = 0
         self.user_still_searching = config["num_users"]
 
+    # def one_step(self):
+    #     self.step += 1
+    #
+    #     # 使用 concurrent.futures 来并行化循环操作
+    #     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+    #         #  submit tasks
+    #         user_tasks = [executor.submit(self.process_user, user) for user in self.users]
+    #         # wait for all tasks finished
+    #         concurrent.futures.wait(user_tasks)
+
     def one_step(self):
         self.step += 1
-
-        # 使用 concurrent.futures 来并行化循环操作
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            #  submit tasks
-            user_tasks = [executor.submit(self.process_user, user) for user in self.users]
-            # wait for all tasks finished
-            concurrent.futures.wait(user_tasks)
-
-    def process_user(self, user):
-        recom_res = self.rs.recommend_alpha(self.creators)
+        if self.alpha not in [-1000, 1000]:
+            recom_res = self.rs.recommend_alpha(self.creators)
+        else:
+            recom_res = self.rs.recommend_extreme(self.creators)
         for u in self.users:
             # exploration
             self.network.follow(u, self.creators[recom_res[u.id]], self.step)
             # consume followed channels
             self.network.consume_followed(u, self.creators, self.step)
-
 
     def check_absorb(self):
         """
@@ -194,6 +221,6 @@ class Process:
         @return: Whether all users stop consuming
         """
         user_still_consuming = sum(1 for user in self.users if not user.finish_time)
-        # print(f'the {self.step} th step remains {user_still_consuming} consuming')
+        print(f'the {self.step} th step remains {user_still_consuming} consuming')
         return user_still_consuming == 0
 
