@@ -1,5 +1,6 @@
 import numpy as np
 from tools.utils import get_root_path, path
+import concurrent.futures
 
 # from simu_process.distribution import kde_simu
 
@@ -79,8 +80,8 @@ class Network:
         :return:
         """
         # attention_limit = self.config["attention_limit"]
-        if self.G[user.id][cc.id] == 0 and user.finish_time is None:
-            self.G[user.id][cc.id] = 1
+        if self.G[user.id, cc.id] == 0 and user.finish_time is None:
+            self.G[user.id, cc.id] = 1
             user.followed_creators.append(cc.id)
             # user.occupancy += cc.frequency
             user.consume += 1
@@ -99,14 +100,19 @@ class Network:
         @param creators:
         @return:
         """
-        if user.followed_creators != [] and user.finish_time is None:
-            views = [creators[i].views for i in user.followed_creators]
-            freqs = [1+v for v in views]
-            probs = [f/sum(freqs) for f in freqs]
-            idx = np.random.choice(len(probs), p=probs)
-            view_cc = user.followed_creators[idx]
+        if user.followed_creators and user.finish_time is None:
+            followed_creator_ids = user.followed_creators
+            views = np.array([creators[i].views for i in followed_creator_ids])
+            freqs = 1 + views
+            total_freq = np.sum(freqs)
+            probs = freqs / total_freq
+
+            chosen_creator_idx = np.random.choice(len(probs), p=probs)
+            chosen_creator_id = followed_creator_ids[chosen_creator_idx]
+
             user.consume += 1
-            creators[view_cc].views += 1
+            creators[chosen_creator_id].views += 1
+
             if user.consume > self.attention_limit:
                 user.finish_time = step
         # print(f'{step}: user {user.id} has {user.consume} consumed')
@@ -129,16 +135,17 @@ class RS:
         :return: a list of recommendation probability for each creator
         """
         alpha = self.config["alpha"]
-        probs = [(1 + cc.views) ** alpha * cc.frequency for cc in creators]
+        views = np.array([cc.views for cc in creators])
+        freqs = (1 + views) ** alpha * np.array([cc.frequency for cc in creators])
 
-        total_prob = sum(probs)
-        if total_prob == 0:
-            probs = [1 / len(probs) for _ in probs]  # 如果总概率为零，分配均等概率
+        total_freq = np.sum(freqs)
+        if total_freq == 0:
+            probs = np.full(len(freqs), 1 / len(freqs))  # 如果总概率为零，分配均等概率
         else:
-            probs /= total_prob
+            probs = freqs / total_freq
 
         # assign recommended CC for each user at each step
-        recommended_creator_index = [np.random.choice(len(probs), p=probs) for _ in range(self.num_users)]
+        recommended_creator_index = np.random.choice(len(probs), size=self.num_users, p=probs)
         return recommended_creator_index
 
     def recmd_followed(self, users, creators):
@@ -164,14 +171,22 @@ class Process:
 
     def one_step(self):
         self.step += 1
-        # each user get a recommendation
-        recom_res = self.rs.recommend_alpha(self.creators)
 
+        # 使用 concurrent.futures 来并行化循环操作
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            #  submit tasks
+            user_tasks = [executor.submit(self.process_user, user) for user in self.users]
+            # wait for all tasks finished
+            concurrent.futures.wait(user_tasks)
+
+    def process_user(self, user):
+        recom_res = self.rs.recommend_alpha(self.creators)
         for u in self.users:
             # exploration
             self.network.follow(u, self.creators[recom_res[u.id]], self.step)
             # consume followed channels
             self.network.consume_followed(u, self.creators, self.step)
+
 
     def check_absorb(self):
         """
