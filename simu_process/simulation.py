@@ -30,15 +30,21 @@ class Simulation:
         p = model.Process(self.config)
         # steps needed to get absorb
         step = 0
-        while not p.check_absorb():
+        # while not p.check_absorb():
+        while step <= 1200:
             step += 1
             p.one_step()
+            if p.check_absorb():
+                absorb_step = step
+            if step > 1200:
+                absorb_step = None
+                break
 
         # TODO: make it possible to start iteration from given step
         user_data = [{
-            'id': u.id, 'followed': u.followed_creators, 'steps': u.finish_time, 'occupancy': u.occupancy
+            'id': u.id, 'steps': u.finish_time
         } for u in p.users]
-        cc_data = [{'id': cc.id, 'subs': cc.subscribers, 'freq': cc.frequency} for cc in p.creators]
+        cc_data = [{'id': cc.id, 'subs': cc.subscribers, 'view': cc.views} for cc in p.creators]
         return user_data, cc_data
 
     def iterations(self):

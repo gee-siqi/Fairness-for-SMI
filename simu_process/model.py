@@ -2,6 +2,7 @@ import numpy as np
 from tools.utils import get_root_path, path
 import concurrent.futures
 
+
 # from simu_process.distribution import kde_simu
 
 
@@ -26,6 +27,7 @@ class Creator:
         self.frequency = 1000
         while self.frequency > 200 or self.frequency < 0:
             self.frequency = np.random.choice(simu_freq)
+        self.contents = self.frequency
 
 
 class User:
@@ -36,15 +38,14 @@ class User:
     def __init__(self, config, id):
         self.config = config
         self.id = id
-        self.occupancy = 0
         self.followed_creators = []
         self.consume = 0
+        # self.searching_time = 0
         self.finish_time = None
 
     def decision(self, cc):
         """
-        When users haven't reached the attention limit, they follow top n CC among the followed ones.
-
+        Users follow top n CCs among the followed ones.
         param cc: the one recommended to the user at this step
         :return: whether to follow the cc
         """
@@ -82,14 +83,18 @@ class Network:
         # attention_limit = self.config["attention_limit"]
         if self.G[user.id, cc.id] == 0 and user.finish_time is None:
             self.G[user.id, cc.id] = 1
-            user.followed_creators.append(cc.id)
-            # user.occupancy += cc.frequency
-            user.consume += 1
+            # assign # of contents to consume and the user consumption
+            # follow = {'id': cc.id, 'contents': cc.frequency, 'frequency': cc.frequency, 'consume': 1}
+            follow = {'id': cc.id, 'consume': 0}
+            user.followed_creators.append(follow)
             cc.subscribers += 1
-            cc.views += 1
-            # if out of user's attention limit, stop searching
-            if user.consume > self.attention_limit:  # or all(i in user.followed_creators for i in range(self.tolerance)):
-                user.finish_time = step
+            # user.consume += 1
+            # cc.views += 1
+            # # one more month, each user have more contents to consume
+            # if user.consume % self.attention_limit == 0:
+            #     user.searching_time += 1
+            #     for item in user.followed_creators:
+            #         item['contents'] += item['frequency']
 
     def consume_followed(self, user, creators, step):
         """
@@ -100,22 +105,36 @@ class Network:
         @param creators:
         @return:
         """
-        if user.followed_creators and user.finish_time is None:
-            followed_creator_ids = user.followed_creators
-            views = np.array([creators[i].views for i in followed_creator_ids])
-            freqs = 1 + views
-            total_freq = np.sum(freqs)
-            probs = freqs / total_freq
+        if user.followed_creators:  # and user.finish_time is None:
+            # followed_creator_ids = user.followed_creators
+            # views = np.array([creators[i].views for i in followed_creator_ids])
+            # freqs = 1 + views
+            # total_freq = np.sum(freqs)
+            # probs = freqs / total_freq
+            #
+            # chosen_creator_idx = np.random.choice(len(probs), p=probs)
+            # chosen_creator_id = followed_creator_ids[chosen_creator_idx]
 
-            chosen_creator_idx = np.random.choice(len(probs), p=probs)
-            chosen_creator_id = followed_creator_ids[chosen_creator_idx]
+            res_cc = []
+            for item in user.followed_creators:
+                if item['consume'] != creators[item['id']].contents:
+                    res_cc.append(item['id'])
 
-            user.consume += 1
-            creators[chosen_creator_id].views += 1
+            if res_cc:
+                chosen_creator_id = min(res_cc)
+                user.consume += 1
+                creators[chosen_creator_id].views += 1
 
-            if user.consume > self.attention_limit:
+            # print(f'{step}: user {user.id} has {user.consume} consumed')
+            """
+            # !!! Consider attention limit, if the sum of frequency > 120, would never converge
+            # *** For convenient, here only clean up the current contents
+            """
+            # TODO: Consider tolerance > 1
+            # Check whether get the best CCs
+            if any(item['id'] == 0 for item in user.followed_creators):
                 user.finish_time = step
-        # print(f'{step}: user {user.id} has {user.consume} consumed')
+
 
 class RS:
     """
@@ -124,6 +143,7 @@ class RS:
     -1: antiPA
     0: UR
     """
+
     def __init__(self, config, creators):
         self.config = config
         self.num_users = config["num_users"]
@@ -136,13 +156,14 @@ class RS:
         """
         alpha = self.config["alpha"]
         views = np.array([cc.views for cc in creators])
-        freqs = (1 + views) ** alpha * np.array([cc.frequency for cc in creators])
+        freqs = (1.0 + views) ** alpha * (1.0 + np.array([cc.frequency for cc in creators]))
 
         total_freq = np.sum(freqs)
-        if total_freq == 0:
-            probs = np.full(len(freqs), 1 / len(freqs))
-        else:
-            probs = freqs / total_freq
+        # if total_freq == 0:
+        #     probs = np.full(len(freqs), 1 / len(freqs))
+        # else:
+        probs = freqs / total_freq
+
 
         # assign recommended CC for each user at each step
         recommended_creator_index = np.random.choice(len(probs), size=self.num_users, p=probs)
@@ -171,15 +192,12 @@ class RS:
                 recommended_creator_index = np.random.choice(min_indices, size=self.num_users)
         return recommended_creator_index
 
-    def recmd_followed(self, users, creators):
-        # TODO: use alpha method to recommend contents from followed creators
-        pass
-
 
 class Process:
     """
 
     """
+
     def __init__(self, config):
         self.config = config
         self.alpha = config["alpha"]
@@ -202,9 +220,16 @@ class Process:
     #         user_tasks = [executor.submit(self.process_user, user) for user in self.users]
     #         # wait for all tasks finished
     #         concurrent.futures.wait(user_tasks)
+    def update_contents(self, cc):
+        cc['contents'] = cc['contents'] + cc['frequency']
 
     def one_step(self):
         self.step += 1
+        # if it's a now month, each creator have new contents
+        if self.step % self.config['tolerance'] == 0:
+            for cc in self.creators:
+                cc.contents += cc.frequency
+
         if self.alpha not in [-1000, 1000]:
             recom_res = self.rs.recommend_alpha(self.creators)
         else:
@@ -221,6 +246,6 @@ class Process:
         @return: Whether all users stop consuming
         """
         user_still_consuming = sum(1 for user in self.users if not user.finish_time)
-        print(f'the {self.step} th step remains {user_still_consuming} consuming')
+        max_view_id = max(self.creators, key=lambda x: x.views).id
+        print(f'the {self.step} th step remains {user_still_consuming} consuming, {max_view_id} get most views')
         return user_still_consuming == 0
-
