@@ -22,11 +22,11 @@ class Creator:
         root_dir = get_root_path()
         data_dir = path(root_dir, f'simu_process/freq_simu_{config["simu_cat"]}.npy')
         simu_freq = np.load(data_dir)
+        simu_freq = simu_freq[simu_freq > 0]
+        simu_freq = simu_freq[simu_freq < 200]
 
         # if the frequency is more than 200, re-choose frequency
-        self.frequency = 1000
-        while self.frequency > 200 or self.frequency < 0:
-            self.frequency = np.random.choice(simu_freq)
+        self.frequency = np.random.choice(simu_freq)
         self.contents = self.frequency
 
 
@@ -88,13 +88,6 @@ class Network:
             follow = {'id': cc.id, 'consume': 0}
             user.followed_creators.append(follow)
             cc.subscribers += 1
-            # user.consume += 1
-            # cc.views += 1
-            # # one more month, each user have more contents to consume
-            # if user.consume % self.attention_limit == 0:
-            #     user.searching_time += 1
-            #     for item in user.followed_creators:
-            #         item['contents'] += item['frequency']
 
     def consume_followed(self, user, creators, step):
         """
@@ -156,6 +149,7 @@ class RS:
         """
         alpha = self.config["alpha"]
         views = np.array([cc.views for cc in creators])
+        # TODO: /contents of this month
         freqs = (1.0 + views) ** alpha * (1.0 + np.array([cc.frequency for cc in creators]))
 
         total_freq = np.sum(freqs)

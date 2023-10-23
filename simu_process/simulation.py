@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import yaml
 from simu_process import model
 from tools.utils import get_root_path, path
@@ -44,7 +45,7 @@ class Simulation:
         user_data = [{
             'id': u.id, 'steps': u.finish_time
         } for u in p.users]
-        cc_data = [{'id': cc.id, 'subs': cc.subscribers, 'view': cc.views} for cc in p.creators]
+        cc_data = [{'id': cc.id, 'subs': cc.subscribers, 'view': cc.views, 'frequency': cc.frequency} for cc in p.creators]
         return user_data, cc_data
 
     def iterations(self):
@@ -81,3 +82,8 @@ class Simulation:
 def run_simu(file='~/config/config.yaml'):
     sim = Simulation(file)
     sim.simulate()
+
+
+if __name__ == '__main__':
+    file_path = 'D:\Fairness-for-SMI\config\config.yaml'
+    freq_simu = np.load(r'D:\Fairness-for-SMI\simu_process\freq_simu_gaming.npy')
