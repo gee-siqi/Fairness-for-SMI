@@ -1,8 +1,5 @@
 import numpy as np
 from tools.utils import get_root_path, path
-import concurrent.futures
-
-
 # from simu_process.distribution import kde_simu
 
 
@@ -17,6 +14,7 @@ class Creator:
         self.id = id
         self.subscribers = 0
         self.views = 0
+        self.month_views = 0
 
         # get distribution of frequency of a given category
         root_dir = get_root_path()
@@ -40,7 +38,7 @@ class User:
         self.id = id
         self.followed_creators = []
         self.consume = 0
-        # self.searching_time = 0
+        # time when user finds the best CC
         self.finish_time = None
 
     def decision(self, cc):
@@ -52,9 +50,9 @@ class User:
 
         follow = False
         if self.finish_time is None and cc.id not in self.followed_creators:
-            # if len(self.followed_creators) < self.config["tolerance"]:
-            #     follow = True
-            if cc.id < sorted(self.followed_creators)[self.config["tolerance"] - 1]:
+            if len(self.followed_creators) < self.config["tolerance"]:
+                follow = True
+            elif cc.id < sorted([i['id'] for i in self.followed_creators])[self.config["tolerance"] - 1]:
                 follow = True
         return follow
 
@@ -75,21 +73,21 @@ class Network:
     def follow(self, user, cc, step):
         """
         when user decides to follow the creator, how the network work
-        :param step:
-        :param user:
-        :param cc:
-        :return:
+        :param user: one user
+        :param cc: cc recommended to the user
         """
-        # attention_limit = self.config["attention_limit"]
-        if self.G[user.id, cc.id] == 0 and user.finish_time is None:
+        # if the user decides to follow and hasn't followed the CC before
+        if user.decision(cc) and self.G[user.id, cc.id] == 0:
             self.G[user.id, cc.id] = 1
-            # assign # of contents to consume and the user consumption
-            # follow = {'id': cc.id, 'contents': cc.frequency, 'frequency': cc.frequency, 'consume': 1}
+            # assign user consumption of this cc
             follow = {'id': cc.id, 'consume': 0}
             user.followed_creators.append(follow)
             cc.subscribers += 1
+            # if the user find the best one, mark the step
+            if cc.id == 0:
+                user.finish_time = step
 
-    def consume_followed(self, user, creators, step):
+    def consume_followed(self, user, creators):
         """
         For the followed creators, user consume one from their contents in each step.
         The probability to be consumed is based on their views.
@@ -98,35 +96,27 @@ class Network:
         @param creators:
         @return:
         """
-        if user.followed_creators:  # and user.finish_time is None:
-            # followed_creator_ids = user.followed_creators
-            # views = np.array([creators[i].views for i in followed_creator_ids])
-            # freqs = 1 + views
-            # total_freq = np.sum(freqs)
-            # probs = freqs / total_freq
-            #
-            # chosen_creator_idx = np.random.choice(len(probs), p=probs)
-            # chosen_creator_id = followed_creator_ids[chosen_creator_idx]
-
+        if user.followed_creators:
+            # collect the followed creators not are fully consumed by the user
             res_cc = []
             for item in user.followed_creators:
+                # number of views for each followed < cc's content, here assume user views one content only once.
                 if item['consume'] != creators[item['id']].contents:
                     res_cc.append(item['id'])
 
+            # only consume the contents of the best CC
             if res_cc:
                 chosen_creator_id = min(res_cc)
                 user.consume += 1
                 creators[chosen_creator_id].views += 1
+                creators[chosen_creator_id].month_views += 1
 
             # print(f'{step}: user {user.id} has {user.consume} consumed')
-            """
-            # !!! Consider attention limit, if the sum of frequency > 120, would never converge
-            # *** For convenient, here only clean up the current contents
-            """
-            # TODO: Consider tolerance > 1
-            # Check whether get the best CCs
-            if any(item['id'] == 0 for item in user.followed_creators):
-                user.finish_time = step
+
+            # Check whether the user gets the best CC
+            # TODO: not been here
+            # if any(item['id'] == 0 for item in user.followed_creators):
+            #     user.finish_time = step
 
 
 class RS:
@@ -140,6 +130,8 @@ class RS:
     def __init__(self, config, creators):
         self.config = config
         self.num_users = config["num_users"]
+        self.rs_basic = config["rs_basic"]
+        self.alpha = config["alpha"]
 
     def recommend_alpha(self, creators):
         """
@@ -147,28 +139,66 @@ class RS:
         :param creators: a list of creators with their info
         :return: a list of recommendation probability for each creator
         """
-        alpha = self.config["alpha"]
+        month_views = np.array([cc.month_views for cc in creators])
+        upload_freqs = np.array([cc.frequency for cc in creators])
+        contents = np.array([cc.contents for cc in creators])
         views = np.array([cc.views for cc in creators])
-        # TODO: /contents of this month
-        freqs = (1.0 + views) ** alpha * (1.0 + np.array([cc.frequency for cc in creators]))
 
+        avg_views = np.divide(month_views, (1.0 + upload_freqs))
+        subscribers = np.array([cc.subscribers for cc in creators])
+        total_avg_views = np.divide(views, (1.0 + contents))
+
+        # Recommending CCs based on tatal views combined with frequency
+        if self.rs_basic == 'total_views':
+            freqs = (1.0 + views) ** self.alpha * (1.0 + upload_freqs)
+        # Recommending CCs based on average views of this month combined with frequency
+        elif self.rs_basic == 'avg_views':
+            freqs = (1.0 + avg_views) ** self.alpha * (1.0 + upload_freqs)
+        elif self.rs_basic == 'total_avg_views':
+            freqs = (1.0 + total_avg_views) ** self.alpha * (1.0 + upload_freqs)
+        # Recommending CCs based on subscribers only
+        elif self.rs_basic == 'subscribers':
+            freqs = (1.0 + subscribers) ** self.alpha
+
+        else:
+            raise 'RS should be based on total_views, avg_views, total_avg_views subscribers'
+
+        freqs[np.isinf(freqs)] = 10 ** 308
         total_freq = np.sum(freqs)
-        # if total_freq == 0:
-        #     probs = np.full(len(freqs), 1 / len(freqs))
-        # else:
         probs = freqs / total_freq
-
 
         # assign recommended CC for each user at each step
         recommended_creator_index = np.random.choice(len(probs), size=self.num_users, p=probs)
         return recommended_creator_index
 
     def recommend_extreme(self, creators):
-        alpha = self.config["alpha"]
+
+        month_views = np.array([cc.month_views for cc in creators])
+        upload_freqs = np.array([cc.frequency for cc in creators])
+        contents = np.array([cc.contents for cc in creators])
         views = np.array([cc.views for cc in creators])
+
+        avg_views = np.divide(month_views, (1.0 + upload_freqs))
+        subscribers = np.array([cc.subscribers for cc in creators])
+        total_avg_views = np.divide(views, (1.0 + contents))
+
+        # Recommending CCs based on tatal views combined with frequency
+        if self.rs_basic == 'total_views':
+            freqs = (1.0 + views)
+        # Recommending CCs based on average views of this month combined with frequency
+        elif self.rs_basic == 'avg_views':
+            freqs = (1.0 + avg_views)
+        elif self.rs_basic == 'total_avg_views':
+            freqs = (1.0 + total_avg_views)
+        # Recommending CCs based on subscribers only
+        elif self.rs_basic == 'subscribers':
+            freqs = (1.0 + subscribers)
+        else:
+            raise 'RS should be based on total_views, avg_views, total_avg_views subscribers'
+
         # Extreme PA
-        if alpha == 1000:
-            max_indices = np.where(views == np.max(views))[0]
+        if self.alpha == 1000:
+            max_indices = np.where(freqs == np.max(freqs))[0]
             # if more than one creator have same extrme values, random select recommendation
             if len(max_indices) == 1:
                 recommended_creator_index = [max_indices[0] for _ in range(self.num_users)]
@@ -176,9 +206,9 @@ class RS:
                 recommended_creator_index = np.random.choice(max_indices, size=self.num_users)
 
         # Extreme anti PA
-        elif alpha == -1000:
+        elif self.alpha == -1000:
             # find min indexes
-            min_indices = np.where(views == np.min(views))[0]
+            min_indices = np.where(freqs == np.min(freqs))[0]
             # if more than one creator have same extrme values, random select recommendation
             if len(min_indices) == 1:
                 recommended_creator_index = [min_indices[0] for _ in range(self.num_users)]
@@ -205,34 +235,27 @@ class Process:
         self.step = 0
         self.user_still_searching = config["num_users"]
 
-    # def one_step(self):
-    #     self.step += 1
-    #
-    #     # 使用 concurrent.futures 来并行化循环操作
-    #     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-    #         #  submit tasks
-    #         user_tasks = [executor.submit(self.process_user, user) for user in self.users]
-    #         # wait for all tasks finished
-    #         concurrent.futures.wait(user_tasks)
     def update_contents(self, cc):
         cc['contents'] = cc['contents'] + cc['frequency']
 
     def one_step(self):
         self.step += 1
-        # if it's a now month, each creator have new contents
-        if self.step % self.config['tolerance'] == 0:
+        # if it's a new month, each creator have new contents, views count from 0
+        if self.step % self.config['attention_limit'] == 0:
             for cc in self.creators:
                 cc.contents += cc.frequency
+                cc.month_views = 0
 
         if self.alpha not in [-1000, 1000]:
             recom_res = self.rs.recommend_alpha(self.creators)
         else:
             recom_res = self.rs.recommend_extreme(self.creators)
         for u in self.users:
-            # exploration
-            self.network.follow(u, self.creators[recom_res[u.id]], self.step)
-            # consume followed channels
-            self.network.consume_followed(u, self.creators, self.step)
+            if u.finish_time is None:
+                # decision on whether to follow
+                self.network.follow(u, self.creators[recom_res[u.id]], self.step)
+            # consume followed channels, even when the user find the best cc
+            self.network.consume_followed(u, self.creators)
 
     def check_absorb(self):
         """
@@ -240,6 +263,10 @@ class Process:
         @return: Whether all users stop consuming
         """
         user_still_consuming = sum(1 for user in self.users if not user.finish_time)
-        max_view_id = max(self.creators, key=lambda x: x.views).id
-        print(f'the {self.step} th step remains {user_still_consuming} consuming, {max_view_id} get most views')
+
+        # for debug
+        # max_view_id = max(self.creators, key=lambda x: x.views).id
+        # max_sub_id = max(self.creators, key=lambda x: x.subscribers).id
+        # print(f'the {self.step} th step remains {user_still_consuming} consuming, {max_view_id} get most views, {max_sub_id} get most followers')
+
         return user_still_consuming == 0

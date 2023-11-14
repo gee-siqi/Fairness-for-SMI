@@ -12,8 +12,12 @@ def gen_config(base_file, value, value_list):
 
     # generate new config files and return the list of the file name
     config_list = []
+    seed = 0
     for v in value_list:
         base_config[value] = v
+        # assign different random seed for each alpha.
+        base_config['random_seed'] = seed
+        seed += 1
         new_config = path(config_path, f'config{value}_{v}.yaml')
         with open(new_config, 'w') as file:
             yaml.dump(base_config, file)

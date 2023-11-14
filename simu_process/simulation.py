@@ -21,27 +21,25 @@ class Simulation:
             self.config = yaml.safe_load(file)
         # print('load yaml finished')
         self.iteration = self.config["iterations"]
+        self.time_constrain = self.config["time_constrain"]
 
-    def simulate(self):
+    def simulate(self, random_seed):
         """
         run the simulate process
         @return: three lists of dict data about users and CCs after iteration
         """
-        # TODO: set random seeds
+        np.random.seed(random_seed)
         p = model.Process(self.config)
-        # steps needed to get absorb
         step = 0
-        # while not p.check_absorb():
-        while step <= 1200:
+        # constrain the step of the simulation
+        while step < self.time_constrain:
             step += 1
             p.one_step()
-            if p.check_absorb():
-                absorb_step = step
-            if step > 1200:
-                absorb_step = None
+            # p.check_absorb()
+            # in validation mode, each iteration stops when all users get the best one
+            if self.config["rs_basic"] == 'subscribers' and p.check_absorb():
                 break
 
-        # TODO: make it possible to start iteration from given step
         user_data = [{
             'id': u.id, 'steps': u.finish_time
         } for u in p.users]
@@ -49,16 +47,23 @@ class Simulation:
         return user_data, cc_data
 
     def iterations(self):
+        # generate array of random seeds for runs in each alpha
+        s = np.arange(0, 1000)
+        # randomly select 100 different random seeds for simulations
+        # self.config['random_seed'] help to avoid same seeds array for all alphas
+        rnd = np.random.RandomState(self.config['random_seed'])
+        seeds = rnd.choice(s, size=self.iteration, replace=False)
+
         self.iter_res = []
         user_dfs = []
         cc_dfs = []
 
-        for i in tqdm(range(self.iteration), desc=f"Iterations with alpha = {self.config['alpha']}"):
-            user_data, cc_data = self.simulate()
+        for i in tqdm(range(self.iteration), desc=f"Simulations with alpha = {self.config['alpha']}"):
+            user_data, cc_data = self.simulate(random_seed=int(seeds[i]))
             df_u = pd.DataFrame(user_data)
             df_c = pd.DataFrame(cc_data)
-            df_u['iteration'] = i
-            df_c['iteration'] = i
+            # df_u['iteration'] = i
+            # df_c['iteration'] = i
             user_dfs.append(df_u)
             cc_dfs.append(df_c)
 
@@ -69,8 +74,8 @@ class Simulation:
     def save_data(self, overwrite=True):
         # get the direction of output file, save json for each alpha value
         root_dir = get_root_path()
-        time = datetime.strftime(datetime.now(), "%Y%m%d%H%M%S")
-        self.output_file = path(root_dir, f'_output/{time}alpha{self.config["alpha"]}.pkl')
+        time = datetime.strftime(datetime.now(), "%y%m%d%H%M")
+        self.output_file = path(root_dir, f'_output/{self.config["rs_basic"]}_alpha{self.config["alpha"]}_{time}.pkl')
         with open(self.output_file, 'wb') as file:
             pickle.dump(self.iter_res, file)
 
@@ -84,6 +89,12 @@ def run_simu(file='~/config/config.yaml'):
     sim.simulate()
 
 
+# for test
 if __name__ == '__main__':
-    file_path = 'D:\Fairness-for-SMI\config\config.yaml'
-    freq_simu = np.load(r'D:\Fairness-for-SMI\simu_process\freq_simu_gaming.npy')
+    config_list = [
+        '/Users/gee/PycharmProjects/Fairness-for-SMI/config/configalpha_-0.5.yaml',
+    ]
+
+    simu = Simulation(config_list[0])
+    simu.run_and_save()
+    output = simu.output_file
