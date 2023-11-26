@@ -113,11 +113,6 @@ class Network:
 
             # print(f'{step}: user {user.id} has {user.consume} consumed')
 
-            # Check whether the user gets the best CC
-            # TODO: not been here
-            # if any(item['id'] == 0 for item in user.followed_creators):
-            #     user.finish_time = step
-
 
 class RS:
     """
@@ -243,6 +238,7 @@ class Process:
         # if it's a new month, each creator have new contents, views count from 0
         if self.step % self.config['attention_limit'] == 0:
             for cc in self.creators:
+                # each month create new content and reset month_view
                 cc.contents += cc.frequency
                 cc.month_views = 0
 

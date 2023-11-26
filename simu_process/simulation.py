@@ -58,12 +58,12 @@ class Simulation:
         user_dfs = []
         cc_dfs = []
 
-        for i in tqdm(range(self.iteration), desc=f"Simulations with alpha = {self.config['alpha']}"):
+        for i in tqdm(range(self.iteration), desc=f"Simulations '{self.config['rs_basic']}' with alpha = {self.config['alpha']}"):
             user_data, cc_data = self.simulate(random_seed=int(seeds[i]))
             df_u = pd.DataFrame(user_data)
             df_c = pd.DataFrame(cc_data)
-            # df_u['iteration'] = i
-            # df_c['iteration'] = i
+            df_u['iteration'] = i
+            df_c['iteration'] = i
             user_dfs.append(df_u)
             cc_dfs.append(df_c)
 
