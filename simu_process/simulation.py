@@ -1,8 +1,9 @@
+import os
 import pandas as pd
 import numpy as np
 import yaml
 from simu_process import model
-from tools.utils import get_root_path, path
+from tools.utils import get_root_path
 import pickle
 from tqdm import tqdm
 from datetime import datetime
@@ -75,7 +76,7 @@ class Simulation:
         # get the direction of output file, save json for each alpha value
         root_dir = get_root_path()
         time = datetime.strftime(datetime.now(), "%y%m%d%H%M")
-        self.output_file = path(root_dir, f'_output/{self.config["rs_basic"]}_alpha{self.config["alpha"]}_{time}.pkl')
+        self.output_file = os.path.join(root_dir, f'_output/{self.config["rs_basic"]}_alpha{self.config["alpha"]}_{time}.pkl')
         with open(self.output_file, 'wb') as file:
             pickle.dump(self.iter_res, file)
 

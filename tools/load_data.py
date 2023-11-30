@@ -71,6 +71,3 @@ def process(df):
     # df["published"] = df["Youtuber"].map(get_time)
     # df['published'].eq('').sum()  # count empty value from api
     return df
-
-
-
