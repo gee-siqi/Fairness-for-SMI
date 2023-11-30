@@ -7,8 +7,4 @@ def get_root_path():
     return root_directory
 
 
-def path(path1, path2):
-    full_path = os.path.join(path1, path2)
-    return full_path
-
 

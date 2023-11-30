@@ -6,6 +6,6 @@ num_users: 1000
 rs_basic: avg_views # values in [avg_views, total_views, total_avg_views, subscribers]
 simu_cat: gaming # Which categories selected to simulate frequency distribution
 tolerance: 1 # User follow the best one (2: the best two CCs) CC within followed CCs when decide whether to subscribe
-iterations: 100 # The number of runs for each alpha value
+runs: 100 # The number of runs for each alpha value
 #val_mode: False # Is this the validation mode(True to review the IF of the previous paper). This will cover the parameter rs_basic
 random_seed: 1 # The seed used to generate random seeds for each run

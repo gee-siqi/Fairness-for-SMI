@@ -1,6 +1,6 @@
+import os
 import numpy as np
-from tools.utils import get_root_path, path
-# from simu_process.distribution import kde_simu
+from tools.utils import get_root_path
 
 
 class Creator:
@@ -18,7 +18,7 @@ class Creator:
 
         # get distribution of frequency of a given category
         root_dir = get_root_path()
-        data_dir = path(root_dir, f'simu_process/freq_simu_{config["simu_cat"]}.npy')
+        data_dir = os.path.join(root_dir, f'simu_process/freq_simu_{config["simu_cat"]}.npy')
         simu_freq = np.load(data_dir)
         simu_freq = simu_freq[simu_freq > 0]
         simu_freq = simu_freq[simu_freq < 200]
@@ -113,6 +113,11 @@ class Network:
 
             # print(f'{step}: user {user.id} has {user.consume} consumed')
 
+            # Check whether the user gets the best CC
+            # TODO: not been here
+            # if any(item['id'] == 0 for item in user.followed_creators):
+            #     user.finish_time = step
+
 
 class RS:
     """
@@ -131,7 +136,7 @@ class RS:
     def recommend_alpha(self, creators):
         """
 
-        :param creators: a list of creators with their info
+        :param creators: a list of creators with their features
         :return: a list of recommendation probability for each creator
         """
         month_views = np.array([cc.month_views for cc in creators])
@@ -167,7 +172,7 @@ class RS:
         return recommended_creator_index
 
     def recommend_extreme(self, creators):
-
+        # RSs only assign visibility to the most/leat popular CC
         month_views = np.array([cc.month_views for cc in creators])
         upload_freqs = np.array([cc.frequency for cc in creators])
         contents = np.array([cc.contents for cc in creators])
@@ -214,7 +219,7 @@ class RS:
 
 class Process:
     """
-
+    Design the whole process of the simulation
     """
 
     def __init__(self, config):
@@ -238,7 +243,6 @@ class Process:
         # if it's a new month, each creator have new contents, views count from 0
         if self.step % self.config['attention_limit'] == 0:
             for cc in self.creators:
-                # each month create new content and reset month_view
                 cc.contents += cc.frequency
                 cc.month_views = 0
 
