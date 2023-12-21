@@ -11,7 +11,10 @@ To be noticed, the data in the website changes over time, and re-acquiring may l
 The data collected is saved in [data](data), the top 1000 subscribed channel data of 16 categories and all channels.
 ## Installation and Setup
 The required Python packages are listed in [requirements.txt](requirements.txt).
-
+To install all required packages, you could simply run:
+```shell
+pip install -r requirements.txt
+```
 ## Code structure
 The files in [simu_process](simu_process) include [model.py](simu_process/model.py) which defines the class needed for CCs, users, and the simulation process, and [simulation](simu_process/simulation.py) provides methods to realize the simulation. Other needed functions are listed in [tools](tools). The dictionary of [script](script) contains the files of execution.
 ### Configs
